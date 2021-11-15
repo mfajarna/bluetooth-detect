@@ -1,7 +1,8 @@
 export const utils = {
     color: {
-        primary : "#060930",
-        white : '#FFFF'
+        primary : "#222831",
+        white : '#FFFF',
+        secondary: '#393E46'
     },
 
     fonts: {

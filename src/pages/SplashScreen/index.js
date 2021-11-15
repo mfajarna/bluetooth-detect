@@ -16,7 +16,7 @@ const SpashScreen = ({navigation}) => {
         <View style={styles.container}>
             <View style={styles.wrapper}>
                 <Ic_logo />
-                <Gap height={15} />
+                <Gap height={16} />
                 <Text style={styles.title}>Connect and Monitoring</Text>
             </View>
         </View>
@@ -37,7 +37,7 @@ const styles = StyleSheet.create({
     },
     title:{
         color: utils.color.white,
-        fontFamily: utils.fonts.semibold,
-        fontSize: 18
+        fontFamily: utils.fonts.bold,
+        fontSize: 19
     }
 })
