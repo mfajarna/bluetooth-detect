@@ -7,21 +7,19 @@ export const ENDPOINT = 'https://gateway.telkomuniversity.ac.id/issueauth';
  * @param {object=} payload
  * @returns object
  */
-export const useRequestLogin = async (url, method, payload) => {
+export const useRequestAPI = async (url, method) => {
   const request = await fetch(url, {
     method,
     headers: {
       Authorization: 'Basic ',
-      'Content-Type': 'multipart/form-data',
-    },
-    body: payload,
-    
+      'Content-Type': 'application/json',
+      'Accept' : 'application/json',
+      'x-rapidapi-host': 'weatherbit-v1-mashape.p.rapidapi.com',
+      'x-rapidapi-key': '72f6583dd2mshceaf667958dc796p146e9djsnf973af480c41'
+    },    
   })
     .then((res) => res.json())
     .then((responseJson) => responseJson)
-    .catch((err) => {
-      console.log('error', err);
-    });
 
   return Promise.resolve(request);
 };

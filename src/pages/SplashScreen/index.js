@@ -6,9 +6,10 @@ import { utils } from '../../utils'
 
 const SpashScreen = ({navigation}) => {
 
+    
     useEffect(() => {
         setTimeout(() => {
-            navigation.replace('Dashboard');
+            navigation.replace('IntroScreen');
         }, 2000)
     }, [])
 
@@ -17,7 +18,7 @@ const SpashScreen = ({navigation}) => {
             <View style={styles.wrapper}>
                 <Ic_logo />
                 <Gap height={16} />
-                <Text style={styles.title}>Connect and Monitoring</Text>
+                <Text style={styles.title}>Pulse Oximetri</Text>
             </View>
         </View>
     )
