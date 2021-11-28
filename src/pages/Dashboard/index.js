@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { FlatList, PermissionsAndroid, StyleSheet, Text, View } from 'react-native'
+import { FlatList, PermissionsAndroid, StyleSheet, Text, View,   Platform,   NativeModules,
+  NativeEventEmitter, } from 'react-native'
 import { Gap } from '../../component'
 import { utils } from '../../utils'
 import ToggleSwitch from 'toggle-switch-react-native'
@@ -8,30 +9,13 @@ import GetLocation from 'react-native-get-location'
 import { useRequest, useRequestAPI } from '../../utils/API/httpClient'
 import { showMessage } from '../../utils/showMessage'
 import { normalizeFont } from '../../utils/normalizeFont'
-import { BleManager } from 'react-native-ble-plx'
+import BleManager from '../../utils/BleManager'
 
-export const manager = new BleManager()
-
-const requestPermission = async () => {
-  const granted = await PermissionsAndroid.request(
-    PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION, {
-      title: "Request for Location Permission",
-      message: "Bluetooth Scanner requires access to Fine Location Permission",
-      buttonNeutral: "Ask Me Later",
-      buttonNegative: "Cancel",
-      buttonPositive: "OK"
-    }
-  );
-  return (granted === PermissionsAndroid.RESULTS.GRANTED);
-}
+const BleManagerModule = NativeModules.BleManager;
+const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
 
 const Dashboard = ({route}) => {
 
-    // Bluetooth state
-    const [logData, setLogData] = useState([]);
-    const [logCount, setLogCount] = useState(0);
-    const [scannedDevices, setScannedDevices] = useState({});
-    const [deviceCount, setDeviceCount] = useState(0);
 
     const[toogle,setToogle] = useState(false)
     const dataInput = route.params
@@ -39,6 +23,10 @@ const Dashboard = ({route}) => {
     const[long,setLong] = useState(0);
     const[temp,setTemp] = useState(0);
     const[status,setStatus] = useState('Powered-Off');
+
+    const [isScanning, setIsScanning] = useState(false);
+    const peripherals = new Map();
+    const [list, setList] = useState([]);
 
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
@@ -49,6 +37,109 @@ const Dashboard = ({route}) => {
     const bulan = monthNames[date.getMonth()]
     const tahun = date.getFullYear();
     const tanggal_akhir = `${tanggal} ${bulan} ${tahun}`
+
+    const startScan = () => {
+        if (!isScanning) {
+        BleManager.scan([], 3, true).then((results) => {
+            console.log('Scanning...');
+            setIsScanning(true);
+        }).catch(err => {
+            console.error(err);
+        });
+        }    
+    }
+
+    const enableBt = () => {
+        BleManager.enableBluetooth();
+    }
+
+    const disableBt = () => {
+        BleManager.disableBluetooth();
+    }
+
+    const handleDisconnectedPeripheral = (data) => {
+        let peripheral = peripherals.get(data.peripheral);
+        if (peripheral) {
+        peripheral.connected = false;
+        peripherals.set(peripheral.id, peripheral);
+        setList(Array.from(peripherals.values()));
+        }
+        console.log('Disconnected from ' + data.peripheral);
+  }
+
+  const handleUpdateValueForCharacteristic = (data) => {
+    console.log('Received data from ' + data.peripheral + ' characteristic ' + data.characteristic, data.value);
+  }
+
+  const retrieveConnected = () => {
+    BleManager.getConnectedPeripherals([]).then((results) => {
+      if (results.length == 0) {
+        console.log('No connected peripherals')
+      }
+      console.log(results);
+      for (var i = 0; i < results.length; i++) {
+        var peripheral = results[i];
+        peripheral.connected = true;
+        peripherals.set(peripheral.id, peripheral);
+        setList(Array.from(peripherals.values()));
+      }
+    });
+  }
+
+  const handleDiscoverPeripheral = (peripheral) => {
+    console.log('Got ble peripheral', peripheral);
+    if (!peripheral.name) {
+      peripheral.name = 'NO NAME';
+    }
+    peripherals.set(peripheral.id, peripheral);
+    setList(Array.from(peripherals.values()));
+  }
+
+    const testPeripheral = (peripheral) => {
+    if (peripheral){
+      if (peripheral.connected){
+        BleManager.disconnect(peripheral.id);
+      }else{
+        BleManager.connect(peripheral.id).then(() => {
+          let p = peripherals.get(peripheral.id);
+          if (p) {
+            p.connected = true;
+            peripherals.set(peripheral.id, p);
+            setList(Array.from(peripherals.values()));
+          }
+          console.log('Connected to ' + peripheral.id);
+
+
+          setTimeout(() => {
+
+            /* Test read current RSSI value */
+            BleManager.retrieveServices(peripheral.id).then((peripheralData) => {
+              console.log('Retrieved peripheral services', peripheralData);
+
+              BleManager.readRSSI(peripheral.id).then((rssi) => {
+                console.log('Retrieved actual RSSI value', rssi);
+                let p = peripherals.get(peripheral.id);
+                if (p) {
+                  p.rssi = rssi;
+                  peripherals.set(peripheral.id, p);
+                  setList(Array.from(peripherals.values()));
+                }                
+              });                                          
+            });
+
+          }, 900);
+        }).catch((error) => {
+          console.log('Connection error', error);
+        });
+      }
+    }
+
+  }
+
+    const handleStopScan = () => {
+        console.log('Scan is stopped');
+        setIsScanning(false);
+  }
 
     const getLocation  =  () =>{
         GetLocation.getCurrentPosition({
@@ -80,19 +171,40 @@ const Dashboard = ({route}) => {
 
     useEffect(() => {
         resultApiWeather()
+        BleManager.start({showAlert: false});
+            bleManagerEmitter.addListener('BleManagerDiscoverPeripheral', handleDiscoverPeripheral);
+    bleManagerEmitter.addListener('BleManagerStopScan', handleStopScan );
+    bleManagerEmitter.addListener('BleManagerDisconnectPeripheral', handleDisconnectedPeripheral );
+    bleManagerEmitter.addListener('BleManagerDidUpdateValueForCharacteristic', handleUpdateValueForCharacteristic );
 
-        manager.onStateChange((state) => {
-        const subscription = manager.onStateChange(async (state) => {
-            console.log(state);
-            const newLogData = logData;
-            newLogData.push(state);
-            await setLogCount(newLogData.length);
-            await setLogData(newLogData);
-            subscription.remove();
-        }, true);
-        return () => subscription.remove();
+
+        if (Platform.OS === 'android' && Platform.Version >= 23) {
+        PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION).then((result) => {
+            if (result) {
+                console.log("Permission is OK");
+            } else {
+                PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION).then((result) => {
+                if (result) {
+                    console.log("User accept");
+                } else {
+                    console.log("User refuse");
+                }
+                });
+            }
         });
-    },[manager])
+        }  
+
+
+        
+         return (() => {
+      console.log('unmount');
+      bleManagerEmitter.removeListener('BleManagerDiscoverPeripheral', handleDiscoverPeripheral);
+      bleManagerEmitter.removeListener('BleManagerStopScan', handleStopScan );
+      bleManagerEmitter.removeListener('BleManagerDisconnectPeripheral', handleDisconnectedPeripheral );
+      bleManagerEmitter.removeListener('BleManagerDidUpdateValueForCharacteristic', handleUpdateValueForCharacteristic );
+    })
+
+    },[])
 
     return (
         <View style={styles.container}>
@@ -119,43 +231,14 @@ const Dashboard = ({route}) => {
                             offColor= "#393E46"
                             onToggle={async (isOn) => {
                                 setToogle(isOn)
-                                const btState = await manager.state(); 
+                                console.log(isOn)
 
-                                if(btState === 'Unsupported')
+                                if(isOn == true)
                                 {
-                                    showMessage('Bluetooth is not supported')
-                                    setToogle(false)
-                                    return false
+                                    enableBt()
+                                }if(isOn == false){
+                                    disableBt()
                                 }
-
-                                if(btState !=="PoweredOn")
-                                {
-                                    await manager.enable()
-                                }else{
-                                    await manager.disable()
-                                     setToogle(false)
-                                }
-
-                                const permission = await requestPermission();
-                                 if (permission) {
-                                        manager.startDeviceScan(null, null, async (error, device) => {
-                                            // error handling
-                                            if (error) {
-                                                console.log(error);
-                                                return
-                                            }
-                                            // found a bluetooth device
-                                            if (device) {
-                                                console.log(`${device.name} (${device.id})}`);
-                                                const newScannedDevices = scannedDevices;
-                                                newScannedDevices[device.id] = device;
-                                                await setDeviceCount(Object.keys(newScannedDevices).length);
-                                                await setScannedDevices(scannedDevices);
-                                            }
-                                        });
-                                        }
-        
-                                return true
                             }}
                     />
                 </View>
@@ -199,15 +282,6 @@ const Dashboard = ({route}) => {
                     </View>       
                 </View>
                 <View>
-                        <Text style={styles.statusIndicator}>Scanned Devices</Text>
-                        {/* <FlatList
-                            data={Object.values(scannedDevices)}
-                            renderItem={({item}) => {
-                                return (
-                                    <Text>{`${item.name} (${item.id})`}</Text>
-                                    )
-                            }}
-                        /> */}
                 </View> 
             </View>
         </View>
