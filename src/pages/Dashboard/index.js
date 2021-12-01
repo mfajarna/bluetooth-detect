@@ -6,18 +6,20 @@ import { Gap } from '../../component'
 import { utils } from '../../utils'
 import ToggleSwitch from 'toggle-switch-react-native'
 import { Ic_cerah } from '../../assets/icon'
+import {useDispatch} from 'react-redux';
 import GetLocation from 'react-native-get-location'
 import { useRequest, useRequestAPI } from '../../utils/API/httpClient'
 import { showMessage } from '../../utils/showMessage'
 import { normalizeFont } from '../../utils/normalizeFont'
 import BleManager from '../../utils/BleManager'
-import { getUser } from '../../utils/AsyncStoreService'
+import { deleteUser, getUser } from '../../utils/AsyncStoreService'
 import { Chart, Line, Area, HorizontalAxis, VerticalAxis } from 'react-native-responsive-linechart'
+import CustomButton from '../../component/atoms/CustomButton/CustomButton'
+import { setLoading } from '../../utils/redux/action/global'
 
 
-const Dashboard = ({route}) => {
-
-
+const Dashboard = ({navigation}) => {
+    const dispatch = useDispatch()
     const[toogle,setToogle] = useState(false)
     const[lat,setLat] = useState(0);
     const[long,setLong] = useState(0);
@@ -74,6 +76,14 @@ const Dashboard = ({route}) => {
         }else{
             setTemp(result.main.temp)
         }
+    }
+
+    const onStop = async () => {
+        dispatch(setLoading(true))
+        await deleteUser();
+
+        navigation.replace('IntroScreen')
+       
     }
 
     useEffect(() => {
@@ -176,7 +186,14 @@ const Dashboard = ({route}) => {
                         </View>
                     </View>
                 </View>
-            </View>  
+            </View>
+            <Gap height={10} />  
+            <View>
+                <CustomButton
+                    text="New Checkup"
+                    onPress={onStop}
+                />
+            </View>
         </View>
     </ScrollView>
     )

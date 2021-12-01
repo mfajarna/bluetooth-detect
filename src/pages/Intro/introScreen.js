@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Ic_medical } from '../../assets/icon'
 import { Gap } from '../../component'
@@ -43,6 +43,10 @@ const IntroScreen = ({navigation}) => {
              navigation.replace('MainApp')
          }, 2000)
     }
+
+    useEffect(() => {
+        setLoading(false)
+    },[])
 
     return (
         <View style={styles.container}>
