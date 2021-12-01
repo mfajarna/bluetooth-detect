@@ -5,33 +5,43 @@ import { Gap } from '../../component'
 import CustomButton from '../../component/atoms/CustomButton/CustomButton'
 import CustomTextInput from '../../component/atoms/CustomTextInput/customTextInput'
 import { utils } from '../../utils'
+import {useDispatch} from 'react-redux';
+import { setUser } from '../../utils/AsyncStoreService'
 import { normalizeFont } from '../../utils/normalizeFont'
 import { showMessage } from '../../utils/showMessage'
 import UseForm from '../../utils/UseForm/UseForm'
+import {setLoading} from '../../utils/redux/action/global';
 
-const IntroScreen = ({navigation, route}) => {
-
-    const dataCoor = route.params
-    const[loading,setLoading] = useState(false)
+const IntroScreen = ({navigation}) => {
     const[form,setForm] = UseForm({
         age: '',
         bmi: ''
     })
 
-    console.log(dataCoor)
+   const dispatch = useDispatch()
     const checkInput = () => {
         if(form.age == '' || form.bmi == '')
-        {
+        {   
              showMessage("Data Cannot Be Empty")
-        }else{
-            navigation.replace('Dashboard', form)
+            
+             return false    
         }
     }
 
     const onSubmit = async () => {
-        const check = await checkInput();
+        dispatch(setLoading(true))
+         await checkInput();
+         
+         await setUser({
+             bmi: form.bmi,
+             age: form.age,
+             isData: true
+         })
 
-        return Promise.resolve(check)
+         setTimeout(() => {
+             setLoading(false)
+             navigation.replace('MainApp')
+         }, 2000)
     }
 
     return (

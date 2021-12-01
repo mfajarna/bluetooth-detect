@@ -2,13 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = '@user_information';
 const DEFAULT_USER = {
-  token: '',
-  fullName: '',
-  numberId: '',
-  studyProgram: '',
-  faculty: '',
-  studentClass: '',
-  authenticated: false,
+  bmi: '',
+  age: '',
+  isData: false,
 };
 
 /**
@@ -30,7 +26,7 @@ const setUser = async (user) => {
   const newUser = {
     ...oldUser,
     ...user,
-    authenticated: true,
+    isData: true,
   };
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
   return newUser;

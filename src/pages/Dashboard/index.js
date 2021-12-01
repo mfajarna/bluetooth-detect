@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { FlatList, PermissionsAndroid, StyleSheet, Text, View,   Platform,   NativeModules,
-  NativeEventEmitter, } from 'react-native'
+  NativeEventEmitter,
+  ScrollView, } from 'react-native'
 import { Gap } from '../../component'
 import { utils } from '../../utils'
 import ToggleSwitch from 'toggle-switch-react-native'
@@ -10,23 +11,22 @@ import { useRequest, useRequestAPI } from '../../utils/API/httpClient'
 import { showMessage } from '../../utils/showMessage'
 import { normalizeFont } from '../../utils/normalizeFont'
 import BleManager from '../../utils/BleManager'
+import { getUser } from '../../utils/AsyncStoreService'
+import { Chart, Line, Area, HorizontalAxis, VerticalAxis } from 'react-native-responsive-linechart'
 
-const BleManagerModule = NativeModules.BleManager;
-const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
 
 const Dashboard = ({route}) => {
 
 
     const[toogle,setToogle] = useState(false)
-    const dataInput = route.params
     const[lat,setLat] = useState(0);
     const[long,setLong] = useState(0);
     const[temp,setTemp] = useState(0);
     const[status,setStatus] = useState('Powered-Off');
-
-    const [isScanning, setIsScanning] = useState(false);
-    const peripherals = new Map();
-    const [list, setList] = useState([]);
+    const[data,setData] = useState({
+        bmi: '',
+        age: ''
+    })
 
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
@@ -38,108 +38,15 @@ const Dashboard = ({route}) => {
     const tahun = date.getFullYear();
     const tanggal_akhir = `${tanggal} ${bulan} ${tahun}`
 
-    const startScan = () => {
-        if (!isScanning) {
-        BleManager.scan([], 3, true).then((results) => {
-            console.log('Scanning...');
-            setIsScanning(true);
-        }).catch(err => {
-            console.error(err);
-        });
-        }    
+    const fetchData = async () => {
+        const dataStorage = await getUser();
+
+        setData({
+            bmi: dataStorage.bmi,
+            age: dataStorage.age
+        })
+
     }
-
-    const enableBt = () => {
-        BleManager.enableBluetooth();
-    }
-
-    const disableBt = () => {
-        BleManager.disableBluetooth();
-    }
-
-    const handleDisconnectedPeripheral = (data) => {
-        let peripheral = peripherals.get(data.peripheral);
-        if (peripheral) {
-        peripheral.connected = false;
-        peripherals.set(peripheral.id, peripheral);
-        setList(Array.from(peripherals.values()));
-        }
-        console.log('Disconnected from ' + data.peripheral);
-  }
-
-  const handleUpdateValueForCharacteristic = (data) => {
-    console.log('Received data from ' + data.peripheral + ' characteristic ' + data.characteristic, data.value);
-  }
-
-  const retrieveConnected = () => {
-    BleManager.getConnectedPeripherals([]).then((results) => {
-      if (results.length == 0) {
-        console.log('No connected peripherals')
-      }
-      console.log(results);
-      for (var i = 0; i < results.length; i++) {
-        var peripheral = results[i];
-        peripheral.connected = true;
-        peripherals.set(peripheral.id, peripheral);
-        setList(Array.from(peripherals.values()));
-      }
-    });
-  }
-
-  const handleDiscoverPeripheral = (peripheral) => {
-    console.log('Got ble peripheral', peripheral);
-    if (!peripheral.name) {
-      peripheral.name = 'NO NAME';
-    }
-    peripherals.set(peripheral.id, peripheral);
-    setList(Array.from(peripherals.values()));
-  }
-
-    const testPeripheral = (peripheral) => {
-    if (peripheral){
-      if (peripheral.connected){
-        BleManager.disconnect(peripheral.id);
-      }else{
-        BleManager.connect(peripheral.id).then(() => {
-          let p = peripherals.get(peripheral.id);
-          if (p) {
-            p.connected = true;
-            peripherals.set(peripheral.id, p);
-            setList(Array.from(peripherals.values()));
-          }
-          console.log('Connected to ' + peripheral.id);
-
-
-          setTimeout(() => {
-
-            /* Test read current RSSI value */
-            BleManager.retrieveServices(peripheral.id).then((peripheralData) => {
-              console.log('Retrieved peripheral services', peripheralData);
-
-              BleManager.readRSSI(peripheral.id).then((rssi) => {
-                console.log('Retrieved actual RSSI value', rssi);
-                let p = peripherals.get(peripheral.id);
-                if (p) {
-                  p.rssi = rssi;
-                  peripherals.set(peripheral.id, p);
-                  setList(Array.from(peripherals.values()));
-                }                
-              });                                          
-            });
-
-          }, 900);
-        }).catch((error) => {
-          console.log('Connection error', error);
-        });
-      }
-    }
-
-  }
-
-    const handleStopScan = () => {
-        console.log('Scan is stopped');
-        setIsScanning(false);
-  }
 
     const getLocation  =  () =>{
         GetLocation.getCurrentPosition({
@@ -171,47 +78,15 @@ const Dashboard = ({route}) => {
 
     useEffect(() => {
         resultApiWeather()
-        BleManager.start({showAlert: false});
-            bleManagerEmitter.addListener('BleManagerDiscoverPeripheral', handleDiscoverPeripheral);
-    bleManagerEmitter.addListener('BleManagerStopScan', handleStopScan );
-    bleManagerEmitter.addListener('BleManagerDisconnectPeripheral', handleDisconnectedPeripheral );
-    bleManagerEmitter.addListener('BleManagerDidUpdateValueForCharacteristic', handleUpdateValueForCharacteristic );
-
-
-        if (Platform.OS === 'android' && Platform.Version >= 23) {
-        PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION).then((result) => {
-            if (result) {
-                console.log("Permission is OK");
-            } else {
-                PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION).then((result) => {
-                if (result) {
-                    console.log("User accept");
-                } else {
-                    console.log("User refuse");
-                }
-                });
-            }
-        });
-        }  
-
-
-        
-         return (() => {
-      console.log('unmount');
-      bleManagerEmitter.removeListener('BleManagerDiscoverPeripheral', handleDiscoverPeripheral);
-      bleManagerEmitter.removeListener('BleManagerStopScan', handleStopScan );
-      bleManagerEmitter.removeListener('BleManagerDisconnectPeripheral', handleDisconnectedPeripheral );
-      bleManagerEmitter.removeListener('BleManagerDidUpdateValueForCharacteristic', handleUpdateValueForCharacteristic );
-    })
-
+        fetchData()
     },[])
 
     return (
+        <ScrollView>
         <View style={styles.container}>
             <Gap height={10} />
             <Text style={styles.textDashboard}>Dashboard</Text>
             <Text style={styles.textWelcome}>Welcome Back!</Text>
-
             <View style={styles.content}>
                 <View style={styles.condition}>
                     <View style={{ flexDirection: 'row' }}>
@@ -223,32 +98,13 @@ const Dashboard = ({route}) => {
                     </View>
 
                 </View>
-                <View style={styles.status}>
-                    <Text style={styles.statusText}>Status Bluetooth: {status}</Text>
-                    <ToggleSwitch
-                         isOn={toogle}
-                            onColor="#34BE82"
-                            offColor= "#393E46"
-                            onToggle={async (isOn) => {
-                                setToogle(isOn)
-                                console.log(isOn)
-
-                                if(isOn == true)
-                                {
-                                    enableBt()
-                                }if(isOn == false){
-                                    disableBt()
-                                }
-                            }}
-                    />
-                </View>
                 <Gap height={15} />
                 <View style={styles.condition}>
                     <View>
                         <Text style={styles.textDashboard}>Information checkup: </Text>
                         <Gap height={10} />
-                        <Text style={styles.statusInfo}>Age: {dataInput.age}</Text>
-                        <Text style={styles.statusInfo}>BMI: {dataInput.bmi}</Text>
+                        <Text style={styles.statusInfo}>Age: {data.age}</Text>
+                        <Text style={styles.statusInfo}>BMI: {data.bmi}</Text>
                     </View>
                 </View>
                 <Gap height={15} />
@@ -281,10 +137,48 @@ const Dashboard = ({route}) => {
                         </View>
                     </View>       
                 </View>
-                <View>
-                </View> 
-            </View>
+                <Gap height={15} />
+                <View style={styles.condition}>
+                    <View>
+                        <Text style={styles.textDashboard}>Graph HR and Sp02: </Text>
+                        <Gap height={10} />
+                            <View style={{  }}>
+                                <Chart
+                                    style={{ height: 200, width: 350 }}
+                                    data={[
+                                    { x: 5, y: 15 },
+                                    { x: 6, y: 6 },
+                                    { x: 7, y: 15 },
+                                    { x: 8, y: 3 },
+                                    ]}
+                                    padding={{ left: 20, bottom: 20, right: 20, top: 20 }}
+                                    xDomain={{ min: 5, max: 8 }}
+                                    >
+                                    <VerticalAxis
+                                        tickValues={[0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20]}
+                                        theme={{
+                                        axis: { stroke: { color: '#aaa', width: 2 } },
+                                        ticks: { stroke: { color: '#aaa', width: 2 } },
+                                        labels: { formatter: (v: number) => v.toFixed(2) },
+                                        }}
+                                    />
+                                    <HorizontalAxis
+                                        tickCount={9}
+                                        theme={{
+                                        axis: { stroke: { color: '#aaa', width: 2 } },
+                                        ticks: { stroke: { color: '#aaa', width: 2 } },
+                                        labels: { label: { rotation: 50 }, formatter: (v) => v.toFixed(1) },
+                                        }}
+                                    />
+                                    <Line theme={{ stroke: { color: 'red', width: 2 } }} />
+                                    <Line smoothing="bezier" tension={0.15} theme={{ stroke: { color: 'blue', width: 2 } }} />
+                                    </Chart>
+                        </View>
+                    </View>
+                </View>
+            </View>  
         </View>
+    </ScrollView>
     )
 }
 

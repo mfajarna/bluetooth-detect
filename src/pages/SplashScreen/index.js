@@ -3,13 +3,20 @@ import { StyleSheet, Text, View } from 'react-native'
 import { Ic_logo } from '../../assets/icon'
 import { Gap } from '../../component'
 import { utils } from '../../utils'
+import { getUser } from '../../utils/AsyncStoreService'
 
 const SpashScreen = ({navigation}) => {
 
+    const checkData = async () => {
+        const data = await getUser();
+        const isData = data.isData
+
+        return isData !== false ? navigation.reset({index: 0, routes:[{name: 'MainApp'}]}) : navigation.replace('IntroScreen')
+    }
     
     useEffect(() => {
         setTimeout(() => {
-            navigation.replace('IntroScreen');
+            checkData()
         }, 2000)
     }, [])
 
